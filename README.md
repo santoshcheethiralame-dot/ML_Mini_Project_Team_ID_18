@@ -40,8 +40,31 @@ python scripts/make_slides.py --authors "Name1 (SRN1), Name2 (SRN2)" --problem-i
 4. Launch the live demo:
 
 ```bash
-streamlit run app.py
+streamlit run app.py        # -> http://localhost:8501
 ```
+
+### What the demo shows
+
+`app.py` is layered on purpose. The default surface answers *will it work, and why* in a few
+seconds; the methodology sits behind one expander so a viva can go as deep as the examiner wants
+without burying the headline.
+
+| Layer | What it gives you |
+|---|---|
+| Header | Provenance pills: rows read, cohort dates, held-out accuracy, majority baseline, feature count |
+| Presets | Three scenarios (tabletop game, ambitious hardware, documentary film) scoring **56% / 6% / 25%** on the same model - click through them instead of typing an example live |
+| Inputs | Split into *the project* and *the campaign*; location fields hidden behind an expander; launch date cannot be in the past |
+| Prediction | One card: probability, verdict, and a gauge marking both the 50% decision threshold **and** the 71% base rate, so the class-balancing is visible rather than asserted |
+| Sensitivity | A seven-rung goal ladder from 0.1x to 10x the ask, showing the effect flattening once money stops being the binding constraint |
+| Explanation | Top 8 TreeSHAP contributions as signed bars from a centre axis, so you can see which features pushed the number |
+| Expander | Feature groups, the leakage-safety argument, the 5-seed text ablation, cohort table, and an explicit *where it breaks* section |
+
+Dark mode and colours come from `.streamlit/config.toml`. Every custom visual is built from
+`ks-`-prefixed HTML/CSS scoped to `app.py` - nothing targets Streamlit's internal DOM, so a
+Streamlit upgrade cannot silently break the layout.
+
+`tests/test_app.py` runs the app headlessly and asserts it renders, produces a number, and that
+the number responds to the goal and the presets. If you change the UI, run it.
 
 Smoke test without the dataset (**synthetic data, numbers are meaningless**):
 `python -m src.train --synthetic 12000 --fast --seeds 2`
