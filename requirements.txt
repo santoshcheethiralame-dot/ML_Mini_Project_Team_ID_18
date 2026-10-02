@@ -1,0 +1,14 @@
+# Pinned to the exact versions used for the reported run (pandas 3 / numpy 2 / sklearn 1.9).
+# Unpinned floors let a re-install months later silently change the numbers in the write-up.
+numpy==2.5.3
+pandas==3.0.6
+scikit-learn==1.9.1
+scipy==1.18.1
+lightgbm==4.7.0
+matplotlib==3.11.2
+joblib==1.6.0
+vaderSentiment==3.3.2
+streamlit==1.64.0
+reportlab==5.0.1
+python-pptx==1.0.2
+pytest==9.1.1
