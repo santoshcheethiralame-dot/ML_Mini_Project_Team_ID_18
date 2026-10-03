@@ -39,7 +39,7 @@ def log(msg):
 
 
 def _epoch(s):
-    """'YYYY-MM-DD' -> epoch seconds (local midnight). None passes through."""
+    """'YYYY-MM-DD' -> epoch seconds at 00:00 UTC (naive pandas timestamps are UTC). None passes through."""
     return int(pd.Timestamp(s).timestamp()) if s else None
 
 
