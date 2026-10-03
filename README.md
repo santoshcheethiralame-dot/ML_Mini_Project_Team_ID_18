@@ -105,6 +105,25 @@ nothing measurable, and the LDA / LSA blocks add roughly +0.5 each. Gradient boo
 Confusion matrix (gradient boosting, test set): recall 0.848 on successful projects but 0.740 on failed ones -
 missed campaigns are the harder error.
 
+### Are the differences real? (paired significance)
+
+`scripts/significance.py` refits the models on the same split and scores them on the same 14,330 test
+rows, using a paired bootstrap (2,000 resamples, 95% CI) and an exact McNemar test. Point estimates
+are for one model seed (42), so they differ slightly from the 5-seed means above.
+
+| Comparison | Acc. diff | 95% CI | McNemar p |
+|---|---|---|---|
+| Metadata + NB vs Metadata | +0.68 pts | [0.22, 1.14] | 0.004 |
+| + Sentiment vs + NB | +0.10 pts | [-0.29, 0.45] | 0.63 |
+| + LDA vs + NB | +0.79 pts | [0.37, 1.19] | 0.0002 |
+| + LSA vs + NB | +0.68 pts | [0.17, 1.14] | 0.005 |
+| G. Boosting vs Logistic (runner-up) | +1.99 pts | [1.49, 2.51] | 4e-14 |
+
+Reading: the NB, LDA and LSA gains are statistically real but small (under 1 point); sentiment adds
+nothing detectable; gradient boosting's 2-2.5 point lead over every other model is well outside test
+noise. The intervals capture test-sampling noise only, not variation from re-splitting or retraining.
+Full output: `results/significance.csv` / `.json`.
+
 ## Design decisions worth knowing for the review
 
 - **No leakage.** Label-dependent features (target encodings, NB probability) are computed out-of-fold on train;
