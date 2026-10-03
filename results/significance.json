@@ -1,0 +1,106 @@
+{
+  "n_test": 14330,
+  "bootstrap_resamples": 2000,
+  "seed": 42,
+  "comparisons": [
+    {
+      "A": "Metadata + NB",
+      "B": "Metadata",
+      "acc_diff": 0.006838799720865318,
+      "ci_low": 0.0022313328681088096,
+      "ci_high": 0.011444521981856193,
+      "mcnemar_p": 0.00366978012210966,
+      "significant_95": true
+    },
+    {
+      "A": "Metadata + NB + Sentiment",
+      "B": "Metadata + NB",
+      "acc_diff": 0.0009769713886950138,
+      "ci_low": -0.002862875087229627,
+      "ci_high": 0.004535938590369826,
+      "mcnemar_p": 0.6309062788017811,
+      "significant_95": false
+    },
+    {
+      "A": "Metadata + NB + LDA",
+      "B": "Metadata + NB",
+      "acc_diff": 0.00788555478018138,
+      "ci_low": 0.003698534542916909,
+      "ci_high": 0.01186671318911374,
+      "mcnemar_p": 0.00023438570535221204,
+      "significant_95": true
+    },
+    {
+      "A": "Metadata + NB + LSA",
+      "B": "Metadata + NB",
+      "acc_diff": 0.00676901605024427,
+      "ci_low": 0.0017445917655268817,
+      "ci_high": 0.011374738311235144,
+      "mcnemar_p": 0.004892989798424197,
+      "significant_95": true
+    },
+    {
+      "A": "G. Boosting",
+      "B": "R. Forest",
+      "acc_diff": 0.020655966503838052,
+      "ci_low": 0.015631542219120772,
+      "ci_high": 0.02568039078855544,
+      "mcnemar_p": 1.5689278318669309e-15,
+      "significant_95": true
+    },
+    {
+      "A": "G. Boosting",
+      "B": "Neural Net",
+      "acc_diff": 0.022260990928122837,
+      "ci_low": 0.017096999302163348,
+      "ci_high": 0.027496510816468995,
+      "mcnemar_p": 2.986843156973895e-17,
+      "significant_95": true
+    },
+    {
+      "A": "G. Boosting",
+      "B": "SVM",
+      "acc_diff": 0.02086531751570131,
+      "ci_low": 0.015908932309839446,
+      "ci_high": 0.02595952547103975,
+      "mcnemar_p": 3.961885082689425e-15,
+      "significant_95": true
+    },
+    {
+      "A": "G. Boosting",
+      "B": "Logistic",
+      "acc_diff": 0.019888346127006296,
+      "ci_low": 0.014863921842288907,
+      "ci_high": 0.02505233775296578,
+      "mcnemar_p": 4.235932388372545e-14,
+      "significant_95": true
+    },
+    {
+      "A": "G. Boosting",
+      "B": "Ridge",
+      "acc_diff": 0.02400558269364972,
+      "ci_low": 0.01891137473831128,
+      "ci_high": 0.02944870900209351,
+      "mcnemar_p": 7.648386525784387e-19,
+      "significant_95": true
+    },
+    {
+      "A": "G. Boosting",
+      "B": "OLS",
+      "acc_diff": 0.02400558269364972,
+      "ci_low": 0.01891137473831128,
+      "ci_high": 0.02944870900209351,
+      "mcnemar_p": 7.648386525784387e-19,
+      "significant_95": true
+    },
+    {
+      "A": "G. Boosting",
+      "B": "Lasso",
+      "acc_diff": 0.02456385205861833,
+      "ci_low": 0.019539427773900938,
+      "ci_high": 0.03000697836706212,
+      "mcnemar_p": 1.216844121357073e-19,
+      "significant_95": true
+    }
+  ]
+}
