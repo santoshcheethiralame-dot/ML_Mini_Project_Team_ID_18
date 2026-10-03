@@ -34,20 +34,35 @@ def test_no_post_launch_columns(tables):
     assert banned.isdisjoint(df.columns)
 
 
-def test_oof_encoding_does_not_see_own_label():
-    """A row whose category is unique must NOT get its own label back as its encoding."""
-    cats = pd.Series(["a"] * 50 + ["b"] * 50 + ["rare"])
-    y = np.array([1] * 50 + [0] * 50 + [1])
-    insample = SmoothedTargetEncoder(smoothing=0.0).fit(cats, y).transform(cats)
-    assert insample[-1] == 1.0  # in-sample encoding leaks the label...
-    fb = FeatureBuilder(n_splits=5, seed=0)
+def test_oof_encoding_does_not_see_own_label(tables):
+    """Run the real FeatureBuilder: a row with a never-seen level must get its fold's prior, not its own label.
+
+    We give one training row a location that no other row has and label it 1. Out-of-fold, that level is
+    unseen by the encoder that scores the row, so its target encoding must equal the mean label of the
+    *other* folds. The full-train encoder (used for test rows) has seen the label, so it must differ.
+    """
     from sklearn.model_selection import KFold
-    folds = list(KFold(5, shuffle=True, random_state=0).split(cats))
-    oof = np.zeros(len(cats))
-    for tr, va in folds:
-        oof[va] = SmoothedTargetEncoder(smoothing=0.0).fit(cats.iloc[tr], y[tr]).transform(cats.iloc[va])
-    # ...whereas out-of-fold falls back to the prior for the unseen level
-    assert oof[-1] == pytest.approx(y[folds[[len(va) and (len(cats) - 1) in va for _, va in folds].index(True)][0]].mean())
+
+    df, _ = tables
+    train, _ = split_data(df, "random")
+    train = train.head(1500).copy().reset_index(drop=True)
+    i = 7
+    train.loc[i, "location"] = "A-LOCATION-NO-OTHER-ROW-HAS"
+    train.loc[i, "y"] = 1
+    y = train["y"].to_numpy()
+
+    fb = FeatureBuilder(n_splits=5, seed=0)
+    X = fb.fit_transform(train, y)
+
+    folds = list(KFold(5, shuffle=True, random_state=0).split(train))
+    tr_idx = next(tr for tr, va in folds if i in va)
+    fold_prior = y[tr_idx].mean()
+    oof_value = float(X.loc[i, "m_te_location"])
+    assert oof_value == pytest.approx(fold_prior, rel=1e-4)
+
+    full_value = float(fb.target_enc_["location"].transform(train.loc[[i], "location"])[0])
+    assert full_value != pytest.approx(oof_value, rel=1e-4)   # the in-sample encoding has seen the label
+    assert full_value > oof_value                              # ...and is pulled toward it (label is 1)
 
 
 def test_feature_columns_match_between_train_and_test(tables):
@@ -115,3 +130,38 @@ def test_launch_window_filter_bounds_the_cohort(tmp_path):
     assert s_part["cohort_from"] != "all" and s_part["cohort_to"] == "all"
     assert s_full["cohort_from"] == "all" and s_full["cohort_to"] == "all"
     assert s_full["n_final"] == len(full)
+
+
+def test_cache_is_rebuilt_when_the_data_changes(tmp_path):
+    """A cached table must not be reused after the underlying files change (e.g. a completed re-download)."""
+    from src.data import data_fingerprint, load_dataset
+
+    d = tmp_path / "dump"
+    write_synthetic_dump(str(d), n=600, seed=11)
+    cache = str(tmp_path / "processed" / "table.pkl")
+
+    df1, _ = load_dataset(str(d), cache=cache)
+    df1_again, _ = load_dataset(str(d), cache=cache)           # unchanged data -> served from the cache
+    assert len(df1_again) == len(df1)
+
+    fp_before = data_fingerprint(str(d))
+    extra = make_synthetic(300, seed=12)
+    extra["id"] = extra["id"] + 10_000_000                     # new project ids
+    _chunked_zip(d / "Kickstarter_9999-01-01.zip", [extra])    # a later snapshot appears
+    assert data_fingerprint(str(d)) != fp_before
+
+    df2, stats2 = load_dataset(str(d), cache=cache)
+    assert len(df2) > len(df1), "stale cache was reused after the data changed"
+    assert stats2["n_final"] == len(df2)
+
+
+def test_cache_in_old_format_is_ignored(tmp_path):
+    """Caches written before fingerprints existed were (df, stats) pairs; they must be rebuilt, not trusted."""
+    from src.data import load_dataset
+
+    d = tmp_path / "dump"
+    write_synthetic_dump(str(d), n=400, seed=13)
+    cache = str(tmp_path / "old.pkl")
+    pd.to_pickle((pd.DataFrame({"id": [1]}), {"n_final": 1}), cache)
+    df, stats = load_dataset(str(d), cache=cache)
+    assert len(df) > 1 and stats["n_final"] == len(df)

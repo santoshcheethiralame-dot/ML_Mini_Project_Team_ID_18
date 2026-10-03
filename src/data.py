@@ -8,6 +8,7 @@ on purpose - using it would leak the outcome.
 from __future__ import annotations
 
 import glob
+import hashlib
 import json
 import os
 import zipfile
@@ -28,13 +29,8 @@ def _read_one(handle, nrows: Optional[int] = None) -> pd.DataFrame:
     return pd.read_csv(handle, usecols=lambda c: c in USECOLS, nrows=nrows)
 
 
-def _iter_csvs(path: str, max_files: Optional[int] = None):
-    """Yield (label, DataFrame) for every CSV found in `path` (csv, zip or dir).
-
-    `max_files` limits the number of *snapshot files* (zips / csvs), never the
-    chunk CSVs inside a zip: each Web Robots snapshot is split into ~85 chunks,
-    so counting chunks would silently read a fraction of one snapshot.
-    """
+def _list_files(path: str, max_files: Optional[int] = None) -> list:
+    """Snapshot files (csv / zip) under `path`, oldest first, optionally limited to the first N."""
     if os.path.isfile(path):
         files = [path]
     else:
@@ -49,7 +45,30 @@ def _iter_csvs(path: str, max_files: Optional[int] = None):
         )
     if max_files is not None:
         files = files[:max_files]
-    for f in files:
+    return files
+
+
+def data_fingerprint(path: str, max_files: Optional[int] = None,
+                     launch_from: int | None = None, launch_to: int | None = None) -> str:
+    """Identify exactly which data a cached table was built from.
+
+    Uses file names and byte sizes (not mtimes, which change when files are copied) plus the
+    cohort bounds. A re-downloaded or completed snapshot has a different size, so a stale
+    cache is rebuilt instead of silently reused.
+    """
+    parts = [f"{os.path.basename(f)}:{os.path.getsize(f)}" for f in _list_files(path, max_files)]
+    parts.append(f"from={launch_from}|to={launch_to}")
+    return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16]
+
+
+def _iter_csvs(path: str, max_files: Optional[int] = None):
+    """Yield (label, DataFrame) for every CSV found in `path` (csv, zip or dir).
+
+    `max_files` limits the number of *snapshot files* (zips / csvs), never the
+    chunk CSVs inside a zip: each Web Robots snapshot is split into ~85 chunks,
+    so counting chunks would silently read a fraction of one snapshot.
+    """
+    for f in _list_files(path, max_files):
         if f.lower().endswith(".zip"):
             with zipfile.ZipFile(f) as z:
                 for member in sorted(z.namelist()):
@@ -175,13 +194,24 @@ def split_data(df: pd.DataFrame, mode: str = "random", test_size: float = 0.3, s
 
 def load_dataset(path: str, max_files: Optional[int] = None, cache: Optional[str] = None,
                  launch_from: int | None = None, launch_to: int | None = None):
-    """Raw dump -> clean table, with an optional pickle cache."""
+    """Raw dump -> clean table, with an optional pickle cache.
+
+    The cache is only reused when the data it was built from is unchanged (see
+    `data_fingerprint`). Older caches without a fingerprint are rebuilt.
+    """
+    fp = data_fingerprint(path, max_files, launch_from, launch_to)
     if cache and os.path.exists(cache):
-        print(f"Loading cached table {cache}")
-        return pd.read_pickle(cache)
+        try:
+            cached = pd.read_pickle(cache)
+        except Exception:  # unreadable / corrupt cache -> rebuild
+            cached = None
+        if isinstance(cached, tuple) and len(cached) == 3 and cached[2] == fp:
+            print(f"Loading cached table {cache}")
+            return cached[0], cached[1]
+        print(f"Cache {cache} is stale (data changed or old format) - rebuilding")
     raw, n_read = load_raw(path, max_files=max_files)
     df, stats = clean(raw, n_read, launch_from=launch_from, launch_to=launch_to)
     if cache:
-        os.makedirs(os.path.dirname(cache), exist_ok=True)
-        pd.to_pickle((df, stats), cache)
+        os.makedirs(os.path.dirname(cache) or ".", exist_ok=True)
+        pd.to_pickle((df, stats, fp), cache)
     return df, stats
