@@ -39,7 +39,7 @@ def significance_note(path):
     abl = [r for r in comps if r["B"] in ("Metadata", "Metadata + NB")]
     mods = [r for r in comps if r["A"] == "G. Boosting"]
     parts = "; ".join(f"{label(r)} {fmt(r)}" + ("" if r["significant_95"] else " (not significant)") for r in abl)
-    out = (f"<b>Significance</b> (paired bootstrap on the same {sig['n_test']:,} test rows; accuracy change in points "
+    out = (f"<b>Significance</b> (paired bootstrap on the same {sig['n_test']:,} test rows, one model seed, so estimates differ slightly from the 5-seed means above; accuracy change in points "
            f"with 95% CI): {parts}.")
     if mods:
         lo, hi = (100 * min(r["acc_diff"] for r in mods), 100 * max(r["acc_diff"] for r in mods))
