@@ -20,8 +20,16 @@ pip install -r requirements.txt
 scikit-learn 1.9.1, LightGBM 4.7.0). Keep it that way: with loose floors a re-install can silently change the
 numbers in the write-up, and your write-up is only defensible if the code reproduces them.
 
-1. Download the data into `data/raw/` (see [`data/README.md`](data/README.md) - the snapshots are split into
-   ~85 chunk CSVs each, so check the chunk count before trusting a download).
+1. Download the data into `data/raw/` (see [`data/README.md`](data/README.md)):
+
+```bash
+python scripts/fetch_data.py      # ~2.7 GB, verified against expected chunk counts
+```
+
+   The snapshots are split into ~85 chunk CSVs each, and a partial download is still a valid zip, so the
+   fetcher checks the chunk count of every file and deletes any mismatch rather than letting the loader
+   train on a fraction of a month.
+
 2. Run the whole experiment (features, 8 models, ablation, figures, saved model):
 
 ```bash

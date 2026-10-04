@@ -37,7 +37,8 @@ each one's size ratio matched its chunk ratio, which is the signature of a parti
 | Finished (successful/failed) | 205,063 |
 | **Cohort after launch-window filter** | **47,765** (launched 2024-07-01 to 2026-06-04) |
 
-`2025-11` is absent from the archive we pulled; it is harmless because the snapshots are cumulative.
+`2025-11-12` is available in the archive but was not part of the reported cohort. It is harmless either way,
+because the snapshots are cumulative and the newest snapshot alone reproduces the same table.
 
 Two things worth knowing about the archive:
 
@@ -48,17 +49,34 @@ Two things worth knowing about the archive:
 
 ## Download
 
-1. Open the page above and download the monthly archives (`Kickstarter_YYYY-MM-DDT....zip`).
-2. Put the `.zip` files, unmodified, in `data/raw/`. Sub-folders are fine.
+The archives are hosted on S3 and the index page above does not expose direct `.zip` links, so
+`scripts/fetch_data.py` hard-codes the eight URLs and **verifies each download** against the chunk
+count of the copy we trained on:
+
+```bash
+python scripts/fetch_data.py            # download + verify the 8 snapshots (~2.7 GB)
+python scripts/fetch_data.py --check    # verify what is already in data/raw, download nothing
+```
+
+A download is moved into place only after it passes. A mismatch is deleted rather than left where
+the loader could pick it up, because a truncated snapshot is a valid zip and `src/data.py` will read
+it without complaint.
 
 ```
 data/raw/
-  Kickstarter_2025-10-13T07_42_31_884Z.zip
-  Kickstarter_2025-12-18T03_20_24_296Z.zip
+  Kickstarter_2025-10-13T07_42_31_884Z.zip   83 chunks
+  Kickstarter_2025-12-18T03_20_24_296Z.zip   84
   ...
+  Kickstarter_2026-06-11T03_20_11_324Z.zip   86
 ```
 
-`data/raw/` is git-ignored (the files are large).
+`--extras` additionally fetches `2025-11` and the three known-partial snapshots, printing a warning
+for each. Do **not** use it before reproducing the reported numbers: extra snapshots change the table.
+
+Manual fallback: download `Kickstarter_YYYY-MM-DDT....zip` from the page above and put the files
+unmodified in `data/raw/` (sub-folders are fine), then run `python scripts/fetch_data.py --check`.
+
+`data/raw/` is git-ignored - the files are ~350 MB each and GitHub rejects anything over 100 MB.
 
 ## Restricting the cohort
 
