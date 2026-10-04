@@ -5,6 +5,7 @@
 import argparse
 import io
 import json
+import math
 import os
 
 from reportlab.lib import colors
@@ -22,7 +23,33 @@ def pct(x, d=1):
     return f"{100 * x:.{d}f}%"
 
 
-def build_story(M, fs, authors, problem_id, fig_dir, team_id=""):
+def significance_note(path):
+    """One sentence from results/significance.json (paired bootstrap + McNemar); '' if the file is absent."""
+    if not os.path.exists(path):
+        return ""
+    sig = json.load(open(path))
+    comps = sig["comparisons"]
+
+    def fmt(r):
+        return f"{100 * r['acc_diff']:+.2f} [{100 * r['ci_low']:.2f}, {100 * r['ci_high']:.2f}]"
+
+    def label(r):
+        return "NB" if r["B"] == "Metadata" else r["A"].split(" + ")[-1]
+
+    abl = [r for r in comps if r["B"] in ("Metadata", "Metadata + NB")]
+    mods = [r for r in comps if r["A"] == "G. Boosting"]
+    parts = "; ".join(f"{label(r)} {fmt(r)}" + ("" if r["significant_95"] else " (not significant)") for r in abl)
+    out = (f"<b>Significance</b> (paired bootstrap on the same {sig['n_test']:,} test rows; accuracy change in points "
+           f"with 95% CI): {parts}.")
+    if mods:
+        lo, hi = (100 * min(r["acc_diff"] for r in mods), 100 * max(r["acc_diff"] for r in mods))
+        pmax = max(r["mcnemar_p"] for r in mods)
+        out += (f" Gradient boosting leads each of the other {len(mods)} models by {lo:.1f} to {hi:.1f} points "
+                f"(McNemar p &lt; {10 ** math.ceil(math.log10(pmax)):.0e}).")
+    return out
+
+
+def build_story(M, fs, authors, problem_id, fig_dir, team_id="", show_sig=True):
     body = ParagraphStyle("b", fontName="Helvetica", fontSize=fs, leading=fs * 1.28, alignment=TA_JUSTIFY, spaceAfter=3)
     h = ParagraphStyle("h", fontName="Helvetica-Bold", fontSize=fs + 1.5, textColor=DARK, spaceBefore=5, spaceAfter=2)
     title = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=fs + 5, leading=(fs + 5) * 1.2, textColor=DARK, spaceAfter=3)
@@ -107,6 +134,9 @@ def build_story(M, fs, authors, problem_id, fig_dir, team_id=""):
     S.append(Spacer(1, 3))
     abl_txt = "; ".join(f"{abl[k]['label']} {pct(abl[k]['acc_mean'])}" for k in abl)
     S.append(Paragraph(f"<b>Text-feature ablation</b> (LightGBM accuracy, mean over seeds): {abl_txt}.", body))
+    sig_txt = significance_note(os.path.join(os.path.dirname(fig_dir), "significance.json"))
+    if show_sig and sig_txt:
+        S.append(Paragraph(sig_txt, body))
     figs = []
     for fn, w in (("importance.png", 3.35), ("confusion.png", 2.9)):
         p = os.path.join(fig_dir, fn)
@@ -162,7 +192,8 @@ def main():
         doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=0.65 * inch, rightMargin=0.65 * inch,
                                 topMargin=0.55 * inch, bottomMargin=0.55 * inch,
                                 title="Predicting Kickstarter Project Success", author=args.authors)
-        doc.build(build_story(M, fs, args.authors, args.problem_id, fig_dir, args.team_id))
+        doc.build(build_story(M, fs, args.authors, args.problem_id, fig_dir, args.team_id,
+                                 show_sig=args.max_pages > 1))
         if doc.page <= args.max_pages:
             break
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
