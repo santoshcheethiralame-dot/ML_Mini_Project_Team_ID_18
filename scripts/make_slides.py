@@ -64,9 +64,9 @@ class Deck:
         sh.adjustments[0] = 0.06; sh.shadow.inherit = False
         return sh
 
-    def stat(self, s, x, y, w, big, small):
+    def stat(self, s, x, y, w, big, small, size=30):
         self.card(s, x, y, w, 1.35)
-        self.text(s, x + 0.2, y + 0.18, w - 0.4, 0.65, big, 30, True, GREEN)
+        self.text(s, x + 0.2, y + 0.18, w - 0.4, 0.65, big, size, True, GREEN)
         self.text(s, x + 0.2, y + 0.85, w - 0.4, 0.4, small, 13, False, MUTED)
 
     def bullets(self, s, x, y, w, h, items, size=18):
@@ -96,6 +96,32 @@ class Deck:
             for j, cw in enumerate(col_w):
                 tb.columns[j].width = Inches(cw)
         return tb
+
+
+def _sig(path):
+    """(slide-9 line, conclusion line) from results/significance.json; (None, None) if the file is absent."""
+    if not os.path.exists(path):
+        return None, None
+    comps = json.load(open(path))["comparisons"]
+    def lab(r):
+        x = "NB" if r["B"] == "Metadata" else r["A"].split(" + ")[-1]
+        return x.lower() if x == "Sentiment" else x
+    abl = [r for r in comps if r["B"] in ("Metadata", "Metadata + NB")]
+    yes = [lab(r) for r in abl if r["significant_95"]]
+    no = [lab(r) for r in abl if not r["significant_95"]]
+    mods = [r for r in comps if r["A"] == "G. Boosting"]
+    join = lambda xs: xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1]
+    parts = []
+    if yes:
+        parts.append(f"{join(yes)} gain{'s' if len(yes) > 1 else ''} significant")
+    if no:
+        parts.append(f"{join(no)} not significant")
+    lead = (" Gradient boosting's lead over every other model is significant."
+            if mods and all(r["significant_95"] for r in mods) else "")
+    line = "Paired bootstrap on the same test rows (95% CI): " + "; ".join(parts) + "." + lead
+    concl = ("Paired significance tests: " + "; ".join(parts) + "."
+             + (" Gradient boosting's lead over each other model is significant." if lead else ""))
+    return line, concl
 
 
 def build(M, authors, problem_id, fig_dir, team_id=""):
@@ -136,7 +162,7 @@ def build(M, authors, problem_id, fig_dir, team_id=""):
     D.title(s, "Dataset", "Web Robots Kickstarter scrape, finished campaigns only")
     D.stat(s, 0.7, 1.9, 2.9, f"{st['n_final']:,}", "projects after cleaning")
     D.stat(s, 3.8, 1.9, 2.9, pct(st["success_rate"]), "succeeded")
-    D.stat(s, 6.9, 1.9, 2.9, f"{st['n_train']:,} / {st['n_test']:,}", f"train / test ({st['split']} 70-30)")
+    D.stat(s, 6.9, 1.9, 2.9, f"{st['n_train']:,} / {st['n_test']:,}", f"train / test ({st['split']} 70-30)", size=22)
     D.stat(s, 10.0, 1.9, 2.6, pct(st["baseline_acc"]), "majority-class accuracy")
     D.image(s, fig("eda.png"), 1.6, 3.55, h=3.6)
 
@@ -188,8 +214,9 @@ def build(M, authors, problem_id, fig_dir, team_id=""):
     D.text(s, 9.65, 2.8, 2.8, 2.4, [f"{pct(best['A'])} accuracy", f"F1 {best['F1']:.3f}", f"{100 * (best['A'] - st['baseline_acc']):+.1f} pts vs baseline"], 18)
 
     # 8 model comparison
-    s = D.slide(notes="Adding the NB feature lifts every model. Top models are close, so features matter more than the model.")
-    D.title(s, "Features matter more than the model", f"NB feature: {pct(a1)} \u2192 {pct(a2)} accuracy ({100 * (a2 - a1):+.1f} pts, LightGBM)")
+    s = D.slide(notes="Adding the NB feature lifts every model by about a point. Gradient boosting still leads the next-best model by about two points, and the paired significance test confirms that lead is real, so both the feature and the model choice matter here.")
+    D.title(s, "The NB feature lifts every model", f"NB feature: {pct(a1)} \u2192 {pct(a2)} accuracy ({100 * (a2 - a1):+.1f} pts, LightGBM); "
+            f"{best['model']} leads the next model by {100 * (t2[0]['A'] - t2[1]['A']):.1f} pts")
     D.image(s, fig("models.png"), 1.7, 1.9, w=9.8)
 
     # 9 ablation
@@ -201,6 +228,10 @@ def build(M, authors, problem_id, fig_dir, team_id=""):
                        "random seeds of the boosting model."))
     D.title(s, "Do extra text features help?", "Gain over Metadata + NB (accuracy points): " + ", ".join(f"{abl[k]['label'].split('+ ')[-1]} {100 * v:+.2f}" for k, v in extras.items()))
     D.image(s, fig("ablation.png"), 2.0, 2.0, w=9.3)
+    sig_line, sig_concl = _sig(os.path.join(os.path.dirname(fig_dir), "significance.json"))
+    sent_txt = f"{100 * extras['S3_nb_sent']:+.2f}".replace("-", "\u2212")
+    if sig_line:
+        D.text(s, 0.7, 6.65, 11.9, 0.7, sig_line, 13, False, MUTED)
 
     # 10 error analysis
     s = D.slide(notes="Confusion matrix is for gradient boosting. nb_prob, target encodings and goal-relative features dominate the gain importance.")
@@ -225,7 +256,8 @@ def build(M, authors, problem_id, fig_dir, team_id=""):
     D.text(s, 0.8, 1.7, 11.7, 5, [
         f"{best['model']} is best: {pct(best['A'])} accuracy, F1 {best['F1']:.3f} (paper: about {pct(PAPER_ACC, 0)}).",
         f"Out-of-fold Naive-Bayes blurb probability is the main text feature ({100 * (a2 - a1):+.2f} pts); "
-        f"sentiment adds {100 * extras['S3_nb_sent']:+.2f} pts, LDA {100 * extras['S4_nb_lda']:+.2f} and LSA {100 * extras['S5_nb_lsa']:+.2f}.",
+        f"sentiment adds {sent_txt} pts, LDA {100 * extras['S4_nb_lda']:+.2f} and LSA {100 * extras['S5_nb_lsa']:+.2f}.",
+        *([sig_concl] if sig_concl else []),
         "Leakage-safe encodings and de-duplication keep the estimate honest.",
         "Future work: temporal validation, transformer embeddings, project story and image features.",
     ], 22, False, WHITE)

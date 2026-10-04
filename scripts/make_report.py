@@ -132,7 +132,7 @@ def build_story(M, fs, authors, problem_id, fig_dir, team_id="", show_sig=True):
     S.append(Paragraph(f"<b>Table 1.</b> Models on Metadata + NB features (Sample 2). Class 1 = successful.", body))
     S.append(tbl)
     S.append(Spacer(1, 3))
-    abl_txt = "; ".join(f"{abl[k]['label']} {pct(abl[k]['acc_mean'])}" for k in abl)
+    abl_txt = "; ".join(f"{abl[k]['label']} {pct(abl[k]['acc_mean'], 2)}" for k in abl)
     S.append(Paragraph(f"<b>Text-feature ablation</b> (LightGBM accuracy, mean over seeds): {abl_txt}.", body))
     sig_txt = significance_note(os.path.join(os.path.dirname(fig_dir), "significance.json"))
     if show_sig and sig_txt:
